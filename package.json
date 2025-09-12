@@ -1,10 +1,13 @@
 {
   "name": "desarrollo-de-aplicaciones-1be",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Backend RitmoFit - DA1 UADE",
+  "type": "module",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "test": "echo \"(sin tests por ahora)\" && exit 0"
   },
   "repository": {
     "type": "git",
@@ -17,7 +20,6 @@
     "url": "https://github.com/Diegod2202/Desarrollo-de-Aplicaciones-1BE/issues"
   },
   "homepage": "https://github.com/Diegod2202/Desarrollo-de-Aplicaciones-1BE#readme",
-  "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
