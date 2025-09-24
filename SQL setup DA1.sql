@@ -157,4 +157,28 @@ CREATE TABLE otps (
 -- Seeds de ejemplo
 -- ---------------------------------------------------------
 
--- Usuarios
+-- Usuarios (opcional)
+INSERT INTO users (name, email) VALUES
+  ('Thiago Russo', 'thiago@example.com'),
+  ('Juliana Silva', 'juliana@example.com');
+
+-- Clases: (cupo = cupos disponibles)
+INSERT INTO classes (name, discipline, sede, fecha, hora, cupo, profesor, duracion) VALUES
+  ('Funcional 18:00', 'Funcional', 'Palermo',  '2025-09-10', '18:00:00', 20, 'Carlos López', 60),
+  ('Yoga 19:00',      'Yoga',      'Belgrano', '2025-09-10', '19:00:00', 15, 'María Pérez',  45),
+  ('Spinning 20:00',  'Spinning',  'Palermo',  '2025-09-11', '20:00:00', 25, 'Juan Martínez', 50);
+
+-- Historial (ejemplo)
+INSERT INTO history (user_id, class_id, asistencia_fecha) VALUES
+  (1, 1, '2025-09-10 18:05:00'),
+  (1, 2, '2025-09-11 19:05:00'),
+  (1, 3, '2025-09-15 20:05:00');
+
+-- ---------------------------------------------------------
+-- Notas:
+-- - El backend valida cupo con SELECT ... FOR UPDATE, resta 1 al reservar y suma 1 al cancelar.
+-- - También evita superposición de horarios (misma fecha; [hora, hora+duracion)).
+-- - Si querés mantener “capacidad total” fija, agregá:
+--     ALTER TABLE classes ADD capacidad INT NULL;
+--   y usá 'cupo' sólo como disponibles.
+-- ---------------------------------------------------------
