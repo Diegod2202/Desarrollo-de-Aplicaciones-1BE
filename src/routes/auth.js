@@ -5,6 +5,7 @@ import {
   resendOtp,
   register,
   loginWithPassword,
+  setPassword,
   me,
 } from "../controllers/authController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
@@ -20,7 +21,8 @@ router.post("/resend-otp", resendOtp);
 router.post("/register", register);
 router.post("/login", loginWithPassword);
 
-// Utilidad: probar token
+// Setear password (post-OTP) y perfil
+router.post("/set-password", authMiddleware, setPassword);
 router.get("/me", authMiddleware, me);
 
 export default router;

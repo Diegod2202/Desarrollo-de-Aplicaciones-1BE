@@ -1,13 +1,18 @@
 import jwt from "jsonwebtoken";
 
+/**
+ * Valida el JWT y deja { id, email } en req.user
+ */
 export const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) return res.status(401).json({ error: "Token requerido" });
+  const header = req.headers.authorization || req.headers.Authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
-  const token = authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Token requerido" });
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    // Solo exponemos lo necesario
+    req.user = { id: decoded.id, email: decoded.email };
     next();
   } catch (err) {
     return res.status(401).json({ error: "Token inválido o expirado" });

@@ -3,17 +3,15 @@ import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const OTP_TTL_MIN = 5; // minutos
-const JWT_TTL = "7d";
-
+const OTP_TTL_MIN = 5;            // minutos
+const JWT_TTL = "7d";             // duración del token
+const norm = (e) => (e || "").trim().toLowerCase();
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+/* ========= Email (Gmail) ========= */
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
 async function sendOtpEmail(to, code) {
@@ -25,17 +23,20 @@ async function sendOtpEmail(to, code) {
   });
 }
 
+/* ========= JWT ========= */
 function signToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
-    expiresIn: JWT_TTL,
-  });
+  return jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: JWT_TTL });
 }
 
 /* ===================== OTP ===================== */
 
+/**
+ * Crea un OTP y lo envía por email.
+ * Si el usuario no existe, se creará recién en verifyOtp (registro por OTP).
+ */
 export const requestOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = norm(req.body.email);
     if (!email) return res.status(400).json({ error: "Email requerido" });
 
     const code = generateOtp();
@@ -59,11 +60,15 @@ export const requestOtp = async (req, res) => {
   }
 };
 
+/**
+ * Verifica OTP. Si el usuario no existe lo crea (registro por OTP).
+ * Devuelve token + user + flag hasPassword para guiar el flujo de “crear contraseña”.
+ */
 export const verifyOtp = async (req, res) => {
   try {
-    const { email, code } = req.body;
-    if (!email || !code)
-      return res.status(400).json({ error: "Email y OTP requeridos" });
+    const email = norm(req.body.email);
+    const { code } = req.body;
+    if (!email || !code) return res.status(400).json({ error: "Email y OTP requeridos" });
 
     const conn = await pool.getConnection();
     try {
@@ -71,10 +76,7 @@ export const verifyOtp = async (req, res) => {
         "SELECT * FROM otps WHERE email = ? AND code = ? ORDER BY id DESC LIMIT 1",
         [email, code]
       );
-
-      if (rows.length === 0) {
-        return res.status(400).json({ error: "OTP inválido" });
-      }
+      if (rows.length === 0) return res.status(400).json({ error: "OTP inválido" });
 
       const otp = rows[0];
       if (new Date(otp.expires_at) < new Date()) {
@@ -83,7 +85,7 @@ export const verifyOtp = async (req, res) => {
 
       // Usuario: crear si no existe
       const [userRows] = await conn.execute("SELECT * FROM users WHERE email = ?", [email]);
-      let user;
+      let user, hasPassword;
       if (userRows.length === 0) {
         const name = email.split("@")[0];
         const [result] = await conn.execute(
@@ -91,15 +93,18 @@ export const verifyOtp = async (req, res) => {
           [email, name]
         );
         user = { id: result.insertId, email, name };
+        hasPassword = false;
       } else {
-        user = userRows[0];
+        const u = userRows[0];
+        user = { id: u.id, email: u.email, name: u.name };
+        hasPassword = !!u.password;
       }
 
-      // (opcional) limpiar OTP usado
+      // Limpiar OTP usado (opcional pero recomendado)
       await conn.execute("DELETE FROM otps WHERE id = ?", [otp.id]);
 
       const token = signToken(user);
-      res.json({ message: "Login por OTP exitoso", token, user });
+      res.json({ message: "Login por OTP exitoso", token, user: { ...user, hasPassword } });
     } finally {
       conn.release();
     }
@@ -112,9 +117,8 @@ export const verifyOtp = async (req, res) => {
 // Reenvío simple (genera un OTP nuevo y lo envía)
 export const resendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email requerido" });
-    // Reutilizamos requestOtp para no duplicar lógica
+    req.body.email = norm(req.body.email);
+    if (!req.body.email) return res.status(400).json({ error: "Email requerido" });
     return requestOtp(req, res);
   } catch (err) {
     console.error("resendOtp error:", err);
@@ -124,10 +128,14 @@ export const resendOtp = async (req, res) => {
 
 /* ============== User/Password ============== */
 
-// Registro con user/password (hash con bcrypt)
+/**
+ * Registro explícito con email+password (hashea bcrypt).
+ * (Opcional: con OTP ya tenés registro; dejalo por si querés alta directa con pass.)
+ */
 export const register = async (req, res) => {
   try {
-    const { email, name, password } = req.body;
+    const email = norm(req.body.email);
+    const { name, password } = req.body;
     if (!email || !password)
       return res.status(400).json({ error: "Email y password requeridos" });
 
@@ -148,7 +156,7 @@ export const register = async (req, res) => {
 
       const user = { id: result.insertId, email, name: finalName };
       const token = signToken(user);
-      res.status(201).json({ message: "Usuario registrado", token, user });
+      res.status(201).json({ message: "Usuario registrado", token, user: { ...user, hasPassword: true } });
     } finally {
       conn.release();
     }
@@ -158,28 +166,33 @@ export const register = async (req, res) => {
   }
 };
 
-// Login tradicional con user/password
+/**
+ * Login tradicional con email+password (bcrypt.compare)
+ */
 export const loginWithPassword = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = norm(req.body.email);
+    const { password } = req.body;
     if (!email || !password)
       return res.status(400).json({ error: "Email y password requeridos" });
 
     const conn = await pool.getConnection();
     try {
       const [rows] = await conn.execute("SELECT * FROM users WHERE email = ?", [email]);
-      if (rows.length === 0 || !rows[0].password) {
-        return res.status(401).json({ error: "Credenciales inválidas" });
+      if (rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
+
+      const u = rows[0];
+      if (!u.password) {
+        // Caso UX más claro: usuario creado por OTP aún sin pass
+        return res.status(403).json({ error: "Este usuario no tiene password. Ingresá por OTP y configurá uno." });
       }
 
-      const user = rows[0];
-      const ok = await bcrypt.compare(password, user.password);
+      const ok = await bcrypt.compare(password, u.password);
       if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
 
+      const user = { id: u.id, email: u.email, name: u.name };
       const token = signToken(user);
-      // No exponer hash de password
-      delete user.password;
-      res.json({ message: "Login exitoso", token, user });
+      res.json({ message: "Login exitoso", token, user: { ...user, hasPassword: true } });
     } finally {
       conn.release();
     }
@@ -189,8 +202,50 @@ export const loginWithPassword = async (req, res) => {
   }
 };
 
+/**
+ * Setea/actualiza password para el usuario logueado (flujo post-OTP).
+ * Requiere authMiddleware (JWT) en la ruta.
+ */
+export const setPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ error: "Password requerido" });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.execute("UPDATE users SET password = ? WHERE id = ?", [hash, req.user.id]);
+      res.json({ message: "Password actualizado" });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error("setPassword error:", e);
+    res.status(500).json({ error: "No se pudo actualizar el password" });
+  }
+};
+
 /* ============== Utilidad protegida ============== */
 
+/**
+ * Devuelve el usuario actual (con flag hasPassword).
+ */
 export const me = async (req, res) => {
-  res.json({ user: req.user });
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = await conn.execute(
+      "SELECT id, email, name, password FROM users WHERE id = ?",
+      [req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    const u = rows[0];
+    res.json({ user: { id: u.id, email: u.email, name: u.name, hasPassword: !!u.password } });
+  } catch (e) {
+    console.error("me error:", e);
+    res.status(500).json({ error: "No se pudo obtener el usuario" });
+  } finally {
+    conn.release();
+  }
 };
