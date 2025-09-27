@@ -3,25 +3,11 @@ import pool from "../config/db.js";
 // GET /history?from=2025-09-01&to=2025-09-30
 export const getHistory = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: "No autenticado" });
-    }
-
+    const userId = req.user.id;
     const { from, to } = req.query;
 
     let query = `
-      SELECT 
-        h.id AS history_id, 
-        h.asistencia_fecha,
-        c.id AS class_id,
-        c.name, 
-        c.discipline, 
-        c.sede, 
-        c.fecha, 
-        c.hora, 
-        c.profesor, 
-        c.duracion
+      SELECT h.id as history_id, h.asistencia_fecha, c.*
       FROM history h
       JOIN classes c ON h.class_id = c.id
       WHERE h.user_id = ?

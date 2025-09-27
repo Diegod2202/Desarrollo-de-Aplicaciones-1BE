@@ -1,92 +1,67 @@
--- =========================================================
--- RitmoFit - SQL para 1° Entrega (DB + Tablas + Seeds)
--- Reemplaza por completo tu archivo actual con este contenido
--- =========================================================
+CREATE DATABASE ritmofit;
 
-DROP DATABASE IF EXISTS ritmofit;
-CREATE DATABASE ritmofit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ritmofit;
 
--- =========================
--- Tabla: users
--- =========================
+-- Usuarios
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100),
-  email VARCHAR(100) NOT NULL UNIQUE,
+  email VARCHAR(100) UNIQUE NOT NULL,
   photo VARCHAR(255),
-  password VARCHAR(255),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+  password VARCHAR(255), -- opcional si más adelante querés login tradicional
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- =========================
--- Tabla: classes
--- =========================
+-- Clases
 CREATE TABLE classes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  discipline VARCHAR(100) NOT NULL,
-  sede VARCHAR(100) NOT NULL,
-  fecha DATE NOT NULL,
-  hora TIME NOT NULL,
-  cupo INT NOT NULL,
+  discipline VARCHAR(100),
+  sede VARCHAR(100),
+  fecha DATE,
+  hora TIME,
+  cupo INT,
   profesor VARCHAR(100),
-  duracion INT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+  duracion INT
+);
 
--- =========================
--- Tabla: reservations
--- =========================
+-- Reservas
 CREATE TABLE reservations (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  class_id INT NOT NULL,
-  status ENUM('confirmada', 'cancelada') NOT NULL DEFAULT 'confirmada',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_res_user FOREIGN KEY (user_id) REFERENCES users(id),
-  CONSTRAINT fk_res_class FOREIGN KEY (class_id) REFERENCES classes(id),
-  CONSTRAINT uq_user_class UNIQUE (user_id, class_id)  -- evita reservar la misma clase 2 veces
-) ENGINE=InnoDB;
+  user_id INT,
+  class_id INT,
+  status ENUM('confirmada', 'cancelada', 'expirada') DEFAULT 'confirmada',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (class_id) REFERENCES classes(id)
+);
 
--- =========================
--- Tabla: history
--- =========================
+-- Historial (se puede usar reservations + status/fecha)
 CREATE TABLE history (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  class_id INT NOT NULL,
-  asistencia_fecha DATETIME NOT NULL,
-  CONSTRAINT fk_hist_user FOREIGN KEY (user_id) REFERENCES users(id),
-  CONSTRAINT fk_hist_class FOREIGN KEY (class_id) REFERENCES classes(id)
-) ENGINE=InnoDB;
+  user_id INT,
+  class_id INT,
+  asistencia_fecha DATETIME,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (class_id) REFERENCES classes(id)
+);
 
--- =========================
--- Tabla: otps (login por email)
--- =========================
+-- OTP (para login por mail)
 CREATE TABLE otps (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(100) NOT NULL,
   code VARCHAR(6) NOT NULL,
-  expires_at DATETIME NOT NULL,
-  INDEX (email)
-) ENGINE=InnoDB;
+  expires_at DATETIME NOT NULL
+);
 
--- =========================
--- Datos de prueba (Seeds)
--- =========================
+INSERT INTO classes (name, discipline, sede, fecha, hora, cupo, profesor, duracion)
+VALUES
+  ('Funcional 18:00', 'Funcional', 'Palermo', '2025-09-10', '18:00:00', 20, 'Carlos López', 60),
+  ('Yoga 19:00', 'Yoga', 'Belgrano', '2025-09-10', '19:00:00', 15, 'María Pérez', 45),
+  ('Spinning 20:00', 'Spinning', 'Palermo', '2025-09-11', '20:00:00', 25, 'Juan Martínez', 50);
 
--- Usuario demo para probar login/Reservas/Historial
-INSERT INTO users (name, email, photo)
-VALUES ('Usuario Demo', 'demo@uade.edu', 'https://picsum.photos/200');
-
--- NOTA: ponemos fechas a FUTURO para poder reservar en la demo
-INSERT INTO classes (name, discipline, sede, fecha, hora, cupo, profesor, duracion) VALUES
-('Funcional 18:00', 'Funcional', 'Palermo',  DATE '2025-09-22', TIME '18:00:00', 20, 'Carlos López', 60),
-('Yoga 19:00',      'Yoga',      'Belgrano', DATE '2025-09-22', TIME '19:00:00', 15, 'María Pérez', 45),
-('Spinning 20:00',  'Spinning',  'Palermo',  DATE '2025-09-23', TIME '20:00:00', 25, 'Juan Martínez', 50);
-
--- Historial de ejemplo (clase pasada simulada)
--- Si querés, comentá estas líneas si no necesitás mostrar historial aún.
-INSERT INTO history (user_id, class_id, asistencia_fecha) VALUES
-(2, 1, '2025-09-01 18:05:00');
+INSERT INTO history (user_id, class_id, asistencia_fecha)
+VALUES
+  (1, 1, '2025-09-10 18:05:00'),
+  (1, 2, '2025-09-11 19:05:00'),
+  (1, 3, '2025-09-15 20:05:00');
