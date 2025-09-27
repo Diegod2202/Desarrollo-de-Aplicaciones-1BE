@@ -1,12 +1,28 @@
 import { Router } from "express";
-import { requestOtp, verifyOtp } from "../controllers/authController.js";
+import {
+  requestOtp,
+  verifyOtp,
+  resendOtp,
+  register,
+  loginWithPassword,
+  setPassword,
+  me,
+} from "../controllers/authController.js";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
-// Solicitar OTP
+// OTP
 router.post("/request-otp", requestOtp);
-
-// Verificar OTP
 router.post("/verify-otp", verifyOtp);
+router.post("/resend-otp", resendOtp);
+
+// User/password
+router.post("/register", register);
+router.post("/login", loginWithPassword);
+
+// Setear password (post-OTP) y perfil
+router.post("/set-password", authMiddleware, setPassword);
+router.get("/me", authMiddleware, me);
 
 export default router;
