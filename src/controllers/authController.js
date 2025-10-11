@@ -183,16 +183,30 @@ export const loginWithPassword = async (req, res) => {
 
       const u = rows[0];
       if (!u.password) {
-        // Caso UX más claro: usuario creado por OTP aún sin pass
         return res.status(403).json({ error: "Este usuario no tiene password. Ingresá por OTP y configurá uno." });
       }
 
       const ok = await bcrypt.compare(password, u.password);
       if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
 
+      // ✅ Generar y guardar OTP automático
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000);
+
+      await conn.execute(
+        "INSERT INTO otps (email, code, expires_at) VALUES (?, ?, ?)",
+        [email, otp, expiresAt]
+      );
+
+      // ✅ Enviar OTP por email
+      await sendOtpEmail(email, otp);
+
+      // Devolvemos solo el user, sin token aún
       const user = { id: u.id, email: u.email, name: u.name };
-      const token = signToken(user);
-      res.json({ message: "Login exitoso", token, user: { ...user, hasPassword: true } });
+      res.json({
+        message: "Código OTP enviado al correo",
+        user: { ...user, hasPassword: true },
+      });
     } finally {
       conn.release();
     }
